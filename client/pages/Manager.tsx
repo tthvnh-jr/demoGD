@@ -1,27 +1,27 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AccountInfo } from "@/components/AccountInfo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SidebarLayout } from "@/components/layouts/SidebarLayout";
 
-type Tx = { id: string; method: "cash"|"momo"|"bank"; amount: number };
-const SAMPLE: Tx[] = [
-  { id: "t1", method: "cash", amount: 500000 },
-  { id: "t2", method: "momo", amount: 320000 },
-  { id: "t3", method: "bank", amount: 880000 },
-];
+const PAY_KEY = "mossd_payments";
+const DISH_KEY = "mossd_dishes";
+
+type Tx = { id: string; method: "cash"|"momo"|"bank"; amount: number; createdAt: string };
+function loadPays(): Tx[] { const raw = localStorage.getItem(PAY_KEY); return raw? JSON.parse(raw): []; }
 
 type Product = { id: string; name: string; plan: number; visible: boolean };
-const INITIAL: Product[] = [
-  { id: "p1", name: "Beef Pho", plan: 50, visible: true },
-  { id: "p2", name: "Vegan Salad", plan: 40, visible: true },
-  { id: "p3", name: "Ramen Spicy", plan: 30, visible: false },
-];
+function loadDishes(): Product[] { const raw = localStorage.getItem(DISH_KEY); const arr = raw? JSON.parse(raw) as { id:string;name:string;price:number;visible:boolean }[]: []; return arr.map(d=> ({ id: d.id, name: d.name, plan: 0, visible: d.visible })); }
 
 export default function Manager(){
-  const [txs] = useState<Tx[]>(SAMPLE);
-  const [items, setItems] = useState<Product[]>(INITIAL);
+  const [tab, setTab] = useState("report");
+  const [txs, setTxs] = useState<Tx[]>([]);
+  const [items, setItems] = useState<Product[]>([]);
   const [accName, setAccName] = useState("");
+
+  useEffect(()=>{ setTxs(loadPays()); setItems(loadDishes()); },[]);
+
   const totals = useMemo(()=> ({
     cash: txs.filter(t=>t.method==='cash').reduce((s,t)=>s+t.amount,0),
     momo: txs.filter(t=>t.method==='momo').reduce((s,t)=>s+t.amount,0),
@@ -30,9 +30,18 @@ export default function Manager(){
   const grand = totals.cash + totals.momo + totals.bank;
 
   return (
-    <div className="container py-8">
+    <SidebarLayout
+      title="Bảng điều khiển Manager"
+      items={[
+        { key: "report", label: "Báo cáo doanh thu" },
+        { key: "products", label: "Quản lý sản phẩm" },
+        { key: "accounts", label: "Tài khoản (đơn giản)" },
+      ]}
+      active={tab}
+      onSelect={setTab}
+    >
       <AccountInfo />
-      <div className="grid gap-6 lg:grid-cols-2">
+      {tab === "report" && (
         <Card>
           <CardHeader><CardTitle>Report doanh thu ngày</CardTitle></CardHeader>
           <CardContent className="grid gap-2 text-sm">
@@ -42,6 +51,8 @@ export default function Manager(){
             <div className="pt-2 border-t">Tổng kết ca: <b>{grand.toLocaleString()}₫</b></div>
           </CardContent>
         </Card>
+      )}
+      {tab === "products" && (
         <Card>
           <CardHeader><CardTitle>Product Management</CardTitle></CardHeader>
           <CardContent className="grid gap-3">
@@ -64,6 +75,8 @@ export default function Manager(){
             ))}
           </CardContent>
         </Card>
+      )}
+      {tab === "accounts" && (
         <Card>
           <CardHeader><CardTitle>CRUD tài khoản (đơn giản)</CardTitle></CardHeader>
           <CardContent className="flex gap-2">
@@ -71,7 +84,7 @@ export default function Manager(){
             <Button onClick={()=> setAccName("")}>Thêm (mock)</Button>
           </CardContent>
         </Card>
-      </div>
-    </div>
+      )}
+    </SidebarLayout>
   );
 }
