@@ -15,6 +15,10 @@ import { cn } from "@/lib/utils";
 
 const phoneSchema = z.string().regex(/^0\d{9}$/);
 
+const DISH_KEY = "mossd_dishes";
+const PAY_KEY = "mossd_payments";
+const ORD_KEY = "mossd_orders";
+
 type Dish = {
   id: string;
   name: string;
@@ -33,7 +37,7 @@ type CartItem = {
   addons: { name: string; price: number }[];
 };
 
-const DISHES: Dish[] = [
+const DEFAULT_DISHES: Dish[] = [
   {
     id: "1",
     name: "Grilled Chicken Bowl",
@@ -74,6 +78,14 @@ const DISHES: Dish[] = [
 
 const TAGS = ["all", "healthy", "protein", "vegan", "light", "soup", "classic", "spicy", "noodles"] as const;
 
+function loadDishes(): Dish[] {
+  const raw = localStorage.getItem(DISH_KEY);
+  const admin = raw ? (JSON.parse(raw) as { id:string; name:string; price:number; visible:boolean }[]) : [];
+  const mapped: Dish[] = admin.filter(d=> d.visible).map(d=> ({ id: d.id, name: d.name, price: d.price, desc: "Món theo menu", img: DEFAULT_DISHES[0].img, calories: 500, tags: ["classic" ] }));
+  const merged = [...DEFAULT_DISHES, ...mapped.filter(m=> !DEFAULT_DISHES.find(x=> x.id===m.id))];
+  return merged;
+}
+
 export default function Customer() {
   const [phone, setPhone] = useState("");
   const [isLogged, setLogged] = useState(false);
@@ -84,16 +96,18 @@ export default function Customer() {
   const [split, setSplit] = useState(false);
   const [status, setStatus] = useState<"created" | "confirmed" | "cooking" | "serving" | "done">("created");
 
+  const [showPersonalize, setShowPersonalize] = useState(false);
   const [bmi, setBmi] = useState<number | null>(null);
   const [diet, setDiet] = useState<string>("");
   const [likes, setLikes] = useState<string>("");
   const [recommendTags, setRecommendTags] = useState<string[] | null>(null);
 
+  const dishes = useMemo(()=> loadDishes(), []);
   const visibleDishes = useMemo(() => {
-    const base = filter === "all" ? DISHES : DISHES.filter((d) => d.tags.includes(filter));
+    const base = filter === "all" ? dishes : dishes.filter((d) => d.tags.includes(filter));
     if (!recommendTags || recommendTags.length === 0) return base;
     return base.filter((d) => recommendTags.some((t) => d.tags.includes(t)));
-  }, [filter, recommendTags]);
+  }, [filter, recommendTags, dishes]);
 
   const subtotal = useMemo(() => {
     return cart.reduce((sum, it) => {
@@ -118,18 +132,22 @@ export default function Customer() {
   };
 
   const checkout = () => {
-    if (!qr) {
-      toast.error("Vui lòng nhập/scan QR bàn");
-      return;
+    if (!qr) { toast.error("Vui lòng nhập/scan QR bàn"); return; }
+    if (!isLogged && !phoneSchema.safeParse(phone).success) { toast.error("Số điện thoại không hợp lệ (bắt đầu bằng 0, 10 số)"); return; }
+    if (cart.length === 0) { toast.error("Giỏ hàng đang trống"); return; }
+
+    const paysRaw = localStorage.getItem(PAY_KEY);
+    const pays = paysRaw ? JSON.parse(paysRaw) as any[] : [];
+    pays.push({ id: crypto.randomUUID(), amount: subtotal, method: payment, createdAt: new Date().toISOString(), table: qr, phone });
+    localStorage.setItem(PAY_KEY, JSON.stringify(pays));
+
+    const ordRaw = localStorage.getItem(ORD_KEY);
+    const ords = ordRaw ? JSON.parse(ordRaw) as any[] : [];
+    for(const it of cart){
+      ords.push({ dishId: it.dish.id, qty: it.qty, createdAt: new Date().toISOString()});
     }
-    if (!isLogged && !phoneSchema.safeParse(phone).success) {
-      toast.error("Số điện thoại không hợp lệ (bắt đầu bằng 0, 10 số)");
-      return;
-    }
-    if (cart.length === 0) {
-      toast.error("Giỏ hàng đang trống");
-      return;
-    }
+    localStorage.setItem(ORD_KEY, JSON.stringify(ords));
+
     setStatus("confirmed");
     toast("Đặt món thành công", { description: "Nhà bếp sẽ chuẩn bị ngay!" });
   };
@@ -172,50 +190,53 @@ export default function Customer() {
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex items-center justify-between">
               <CardTitle>Cá nhân hoá món ăn</CardTitle>
+              <Button variant="outline" onClick={()=> setShowPersonalize(v=>!v)}>{showPersonalize? 'Đóng' : 'Cá nhân hoá'}</Button>
             </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid grid-cols-2 gap-3 max-w-xl">
-                <div>
-                  <Label htmlFor="h">Chiều cao (cm)</Label>
-                  <Input id="h" type="number" placeholder="170" onChange={(e)=>{}} />
+            {showPersonalize && (
+              <CardContent className="grid gap-4">
+                <div className="grid grid-cols-2 gap-3 max-w-xl">
+                  <div>
+                    <Label htmlFor="h">Chiều cao (cm)</Label>
+                    <Input id="h" type="number" placeholder="170" onChange={(e)=>{}} />
+                  </div>
+                  <div>
+                    <Label htmlFor="w">Cân nặng (kg)</Label>
+                    <Input id="w" type="number" placeholder="65" onChange={(e)=>{}} />
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="diet">Nhu cầu ăn uống</Label>
+                    <Input id="diet" placeholder="Healthy, giảm cân, tăng cơ..." value={diet} onChange={(e)=>setDiet(e.target.value)} />
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="likes">Sở thích</Label>
+                    <Input id="likes" placeholder="spicy, soup..." value={likes} onChange={(e)=>setLikes(e.target.value)} />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="w">Cân nặng (kg)</Label>
-                  <Input id="w" type="number" placeholder="65" onChange={(e)=>{}} />
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => {
+                    const h = Number((document.getElementById('h') as HTMLInputElement)?.value || 0);
+                    const w = Number((document.getElementById('w') as HTMLInputElement)?.value || 0);
+                    if (!h || !w) { toast.error('Vui lòng nhập đủ chiều cao, cân nặng'); return; }
+                    const val = Number((w / Math.pow(h/100,2)).toFixed(1));
+                    setBmi(val);
+                    const tags: string[] = [];
+                    if (val >= 25) tags.push('healthy','light','vegan');
+                    if (val < 18.5) tags.push('protein');
+                    if (likes.toLowerCase().includes('spicy')) tags.push('spicy');
+                    if (likes.toLowerCase().includes('soup')) tags.push('soup');
+                    setRecommendTags(Array.from(new Set(tags)));
+                  }}>Submit</Button>
+                  {recommendTags && (
+                    <Button variant="ghost" onClick={()=>{ setRecommendTags(null); setBmi(null); }}>Reset</Button>
+                  )}
                 </div>
-                <div className="col-span-2">
-                  <Label htmlFor="diet">Nhu cầu ăn uống</Label>
-                  <Input id="diet" placeholder="Healthy, giảm cân, tăng cơ..." value={diet} onChange={(e)=>setDiet(e.target.value)} />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="likes">Sở thích</Label>
-                  <Input id="likes" placeholder="spicy, soup..." value={likes} onChange={(e)=>setLikes(e.target.value)} />
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={() => {
-                  const h = Number((document.getElementById('h') as HTMLInputElement)?.value || 0);
-                  const w = Number((document.getElementById('w') as HTMLInputElement)?.value || 0);
-                  if (!h || !w) { toast.error('Vui lòng nhập đủ chiều cao, cân nặng'); return; }
-                  const val = Number((w / Math.pow(h/100,2)).toFixed(1));
-                  setBmi(val);
-                  const tags: string[] = [];
-                  if (val >= 25) tags.push('healthy','light','vegan');
-                  if (val < 18.5) tags.push('protein');
-                  if (likes.toLowerCase().includes('spicy')) tags.push('spicy');
-                  if (likes.toLowerCase().includes('soup')) tags.push('soup');
-                  setRecommendTags(Array.from(new Set(tags)));
-                }}>Submit</Button>
-                {recommendTags && (
-                  <Button variant="ghost" onClick={()=>{ setRecommendTags(null); setBmi(null); }}>Reset</Button>
+                {bmi !== null && (
+                  <div className="text-sm text-muted-foreground">BMI của bạn: <span className="font-medium text-foreground">{bmi}</span> • Gợi ý theo tag: {recommendTags?.join(', ') || '—'}</div>
                 )}
-              </div>
-              {bmi !== null && (
-                <div className="text-sm text-muted-foreground">BMI của bạn: <span className="font-medium text-foreground">{bmi}</span> • Gợi ý theo tag: {recommendTags?.join(', ') || '—'}</div>
-              )}
-            </CardContent>
+              </CardContent>
+            )}
           </Card>
 
           <Card>
@@ -379,7 +400,7 @@ function DishCard({ dish, onAdd }: { dish: Dish; onAdd: (it: CartItem) => void }
                 </DialogHeader>
                 <div className="grid gap-4">
                   <div className="grid gap-2">
-                    <Label>Bắt buộc: Size</Label>
+                    <Label>Bắt bu��c: Size</Label>
                     <RadioGroup value={size} onValueChange={(v)=>setSize(v as any)} className="flex gap-2">
                       {["S","M","L"].map((s) => (
                         <label key={s} className={cn("flex items-center gap-2 rounded-md border px-3 py-2", size===s && 'ring-2 ring-primary')}>
