@@ -124,13 +124,13 @@ function ReservationTrigger({ asButton }: { asButton?: boolean }) {
           <SheetTitle>Đặt bàn</SheetTitle>
           <SheetDescription>Nhập thông tin để nhà hàng chuẩn bị tốt nhất.</SheetDescription>
         </SheetHeader>
-        <form className="mt-4 grid gap-3">
-          <input className="rounded-md border px-3 py-2" placeholder="Số điện thoại"/>
-          <input className="rounded-md border px-3 py-2" placeholder="Tên"/>
-          <input className="rounded-md border px-3 py-2" placeholder="Ngày (YYYY-MM-DD)"/>
-          <input className="rounded-md border px-3 py-2" placeholder="Giờ (HH:mm)"/>
-          <input className="rounded-md border px-3 py-2" placeholder="Số người"/>
-          <Button type="button">Gửi yêu cầu</Button>
+        <form className="mt-4 grid gap-3" onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.currentTarget); const data=Object.fromEntries(fd.entries()); const raw=localStorage.getItem('mossd_reservations'); const arr=raw? JSON.parse(raw): []; arr.push({ ...data, id: crypto.randomUUID(), createdAt: new Date().toISOString()}); localStorage.setItem('mossd_reservations', JSON.stringify(arr)); toast.success('Đã gửi yêu cầu đặt bàn'); }}>
+          <input name="phone" className="rounded-md border px-3 py-2" placeholder="Số điện thoại"/>
+          <input name="name" className="rounded-md border px-3 py-2" placeholder="Tên"/>
+          <input name="date" className="rounded-md border px-3 py-2" placeholder="Ngày (YYYY-MM-DD)"/>
+          <input name="time" className="rounded-md border px-3 py-2" placeholder="Giờ (HH:mm)"/>
+          <input name="size" className="rounded-md border px-3 py-2" placeholder="Số người"/>
+          <Button type="submit">Gửi yêu cầu</Button>
         </form>
       </SheetContent>
     </Sheet>
