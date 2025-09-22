@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AccountInfo } from "@/components/AccountInfo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SidebarLayout } from "@/components/layouts/SidebarLayout";
 
 type Item = { id: string; table: string; name: string; note?: string; status: "ordered"|"cooking"|"done" };
 const INITIAL: Item[] = [
@@ -10,11 +11,17 @@ const INITIAL: Item[] = [
 ];
 
 export default function Chef(){
+  const [tab, setTab] = useState("queue");
   const [list, setList] = useState<Item[]>(INITIAL);
   const next = (s: Item["status"]) => (s === "ordered" ? "cooking" : s === "cooking" ? "done" : "done");
 
   return (
-    <div className="container py-8">
+    <SidebarLayout
+      title="Bảng điều khiển Chef"
+      items={[{ key: "queue", label: "Hàng chờ" }]}
+      active={tab}
+      onSelect={setTab}
+    >
       <AccountInfo />
       <Card>
         <CardHeader><CardTitle>Hàng chờ món</CardTitle></CardHeader>
@@ -25,17 +32,21 @@ export default function Chef(){
                 <div className="font-medium">Bàn {it.table} — {it.name}</div>
                 {it.note && <div className="text-xs text-muted-foreground">Ghi chú: {it.note}</div>}
               </div>
-              <Button
-                style={{ backgroundColor: it.status==='cooking'? '#f59e0b' : undefined }}
-                variant={it.status==='ordered'? 'secondary' : 'default'}
-                onClick={()=>{ const copy=[...list]; copy[i]={...it, status: next(it.status)}; setList(copy); }}
-              >
-                {it.status==='ordered' ? 'Bắt đầu nấu' : it.status==='cooking' ? 'Hoàn thành' : 'Hoàn thành'}
-              </Button>
+              <div className="flex gap-2">
+                {it.status !== 'ordered' && (
+                  <Button variant="outline" onClick={()=>{ const copy=[...list]; copy[i]={...it, status: 'ordered'}; setList(copy);} }>Đợi</Button>
+                )}
+                {it.status !== 'cooking' && (
+                  <Button variant="secondary" onClick={()=>{ const copy=[...list]; copy[i]={...it, status: 'cooking'}; setList(copy);} }>Nấu</Button>
+                )}
+                {it.status !== 'done' && (
+                  <Button className="bg-green-600 hover:bg-green-700" onClick={()=>{ const copy=[...list]; copy[i]={...it, status: 'done'}; setList(copy);} }>Xong</Button>
+                )}
+              </div>
             </div>
           ))}
         </CardContent>
       </Card>
-    </div>
+    </SidebarLayout>
   );
 }
