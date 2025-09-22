@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AccountInfo } from "@/components/AccountInfo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SidebarLayout } from "@/components/layouts/SidebarLayout";
 
 const TABLES = ["A1","A2","A3","B1","B2","B3"] as const;
 
@@ -12,13 +13,19 @@ const INITIAL: Record<string, Dish[]> = {
 };
 
 export default function Staff(){
+  const [tab, setTab] = useState("tables");
   const [orders, setOrders] = useState<Record<string, Dish[]>>(INITIAL);
   const [helps, setHelps] = useState<string[]>(["B3"]);
 
   return (
-    <div className="container py-8">
+    <SidebarLayout
+      title="Bảng điều khiển Staff"
+      items={[{ key: "tables", label: "Tổng quan bàn" }, { key: "orders", label: "Đơn theo bàn" }]}
+      active={tab}
+      onSelect={setTab}
+    >
       <AccountInfo />
-      <div className="grid gap-6 lg:grid-cols-2">
+      {tab === "tables" && (
         <Card>
           <CardHeader><CardTitle>Tổng quan bàn</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-3 gap-2">
@@ -35,6 +42,8 @@ export default function Staff(){
             })}
           </CardContent>
         </Card>
+      )}
+      {tab === "orders" && (
         <Card>
           <CardHeader><CardTitle>Đơn theo bàn</CardTitle></CardHeader>
           <CardContent className="grid gap-3">
@@ -57,7 +66,7 @@ export default function Staff(){
             ))}
           </CardContent>
         </Card>
-      </div>
-    </div>
+      )}
+    </SidebarLayout>
   );
 }
